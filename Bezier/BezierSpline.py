@@ -1,12 +1,14 @@
 import bisect
 import numpy as np
 
-from BezierCurve import BezierCurve
-from ControlPoint import ControlPoint
-from ConvexHull import ConvexHull
+from Bezier.BezierCurve import BezierCurve
+from Bezier.ControlPoint import ControlPoint
+from ConvexHull.ConvexHull import ConvexHull
+
+from Integrators.GaussianQuadratureFourthOrder import integrate
 
 class BezierSpline:
-    def __init__(self, ctrl_pts):
+    def __init__(self, ctrl_pts: ControlPoint):
         self.bezier_curves = []
 
         assert len(ctrl_pts) >= 2 and len(ctrl_pts) % 2 == 0
@@ -22,6 +24,68 @@ class BezierSpline:
         self.ctrl_pts = ctrl_pts
 
         self.num_bezier_curves = len(self.bezier_curves)
+        
+    def getLengthAt(self, t):
+        curve_num = int(t)
+        t = t - curve_num
+        
+        length = 0
+
+        # import pdb; pdb.set_trace()
+        
+        for i in range(0, curve_num):
+            length += self.bezier_curves[i].bezier_length
+        
+        differential = lambda param: np.linalg.norm(self.bezier_curves[curve_num].getDerivativeValueAt(param))**2
+        bezier_length = integrate(differential, [0., t])
+        
+        length += bezier_length
+        
+        return length
+            
+        
+    def getTAt(self, s_ref, err_tol = 1e-3, MAX_ITER = 10):
+        t = 0
+        curve_num = 0
+        
+        err = 0 - s_ref
+        
+        gamma = 0.8
+        
+        iter = 0
+        
+        # initial binary search here
+        
+        while np.abs(err) > err_tol and iter < MAX_ITER:
+            differential = lambda param: self.evaluateSplineDerivative(param)
+            diff = np.linalg.norm(differential(t))
+            
+            d = (err)/diff
+            
+            for nu in range (0, 10):
+                temp_t = t - (gamma**nu)*d
+                bezier_length = self.getLengthAt(temp_t)
+            
+                temp_err = bezier_length - s_ref
+                
+                # print("\ttemp: "+str((temp_t, temp_err, diff)))
+                
+                if np.abs(temp_err) < np.abs(err):
+                    err = temp_err
+                    t = temp_t
+                    
+                    break
+                    
+                # import pdb; pdb.set_trace()
+
+            # print("iter: "+str((t, err, diff)))
+            # import pdb; pdb.set_trace()
+        
+            print(iter)
+            
+            iter += 1
+        
+        return t
 
     def evaluateSpline(self, t):
         curve_num = int(t)
@@ -58,6 +122,27 @@ class BezierSpline:
             param = 1.0
         
         return self.bezier_curves[curve_num].getSecondDerivativeValueAt(param)
+    
+    
+    def rasterizeBezier(self):
+        T = np.arange(0, self.num_bezier_curves, 0.05)
+
+        rasterized_bezier = np.zeros((len(T), 2))
+
+        for i in range(0, len(rasterized_bezier)):
+            rasterized_bezier[i] = self.evaluateSpline(T[i])
+
+        return rasterized_bezier
+    
+    def rasterizeBezierPathLength(self):
+        T = np.arange(0, self.num_bezier_curves, 0.05)
+
+        rasterized_path_length = np.zeros(len(T))
+        for i in range(0, len(rasterized_path_length)):
+            rasterized_path_length[i] = self.getLengthAt(T[i])
+
+        return rasterized_path_length
+        
 
     def getCurveOverlapIndices(self, convex_hull):
         indices = []
@@ -134,7 +219,6 @@ class BezierSpline:
         return intersection_pts
     
     def getProjectionOf(self, convex_hull, max_iter, abs_tol, rel_tol):
-
         projection = [None, None, None, None]
 
         for idx in range(len(convex_hull.hull_pts)):
@@ -158,31 +242,15 @@ class BezierSpline:
 
             # Newton-step refinement
             t = min_initial_guess
+            curve_num = int(t)
+            
             closest_point = self.evaluateSpline(t)
 
-            prev_dist_derivative = np.inf
-            dist_derivative = np.dot(closest_point-hull_pt, self.evaluateSplineDerivative(t))
-
             # print("t_initial: "+str(t))
-
-            for iter in range(0, max_iter):
-                if abs(dist_derivative) < abs_tol:
-                    break
                 
-                closest_point = self.evaluateSpline(t)
-                dist_derivative = np.dot(closest_point-hull_pt, self.evaluateSplineDerivative(t))
-                dist_second_derivative = np.dot(closest_point-hull_pt, self.evaluateSplineSecondDerivative(t)) + np.dot(self.evaluateSplineDerivative(t), self.evaluateSplineDerivative(t))
-
-                t_new = min(max(0, t - dist_derivative/dist_second_derivative), len(convex_hull.hull_pts)-1)
-
-                t = t_new
-
-                # print(t)
-
-                if abs(1-(dist_derivative/prev_dist_derivative)) < rel_tol:
-                    break
-                
-                prev_dist_derivative = dist_derivative
+            (t, s, closest_point, dist) = self.bezier_curves[curve_num].closestPointTo(t, hull_pt, max_iter, abs_tol, rel_tol)
+            
+            t = t + curve_num
 
             # Find signed-distance:
             tangent = self.evaluateSplineDerivative(t)
@@ -191,7 +259,7 @@ class BezierSpline:
             dist =np.dot(hull_pt-closest_point, normal)
 
 
-            projection[idx] = (t, closest_point, dist)
+            projection[idx] = (t, s, closest_point, dist)
 
             # print()
 
@@ -308,9 +376,10 @@ class BezierSpline:
         upper_list = []
 
         for (hull_pt, projection_pt) in zip(convex_hull.hull_pts, convex_hull_projection):
-            if projection_pt[2] < 0:
+            print(projection_pt)
+            if projection_pt[3] < 0:
                 bisect.insort(lower_list, (hull_pt, projection_pt), key=lambda x: x[1][0])
-            elif projection_pt[2] > 0:
+            elif projection_pt[3] > 0:
                 bisect.insort(upper_list, (hull_pt, projection_pt), key=lambda x: x[1][0])
 
         intersection_pts = self.getIntersectionsOfConvexHull(convex_hull=convex_hull)

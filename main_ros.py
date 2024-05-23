@@ -7,9 +7,9 @@ import time
 from av_map_msgs.msg import Road
 
 from main_example import rasterizeBezier
-from BezierSpline import BezierSpline
-from ControlPoint import ControlPoint
-from ConvexHull import ConvexHull
+from Bezier.BezierSpline import BezierSpline
+from Bezier.ControlPoint import ControlPoint
+from ConvexHull.ConvexHull import ConvexHull
 
 def callback(data):
     rospy.loginfo(rospy.get_caller_id() + "Road received")

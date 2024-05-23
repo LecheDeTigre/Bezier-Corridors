@@ -66,8 +66,9 @@ class ConvexHull:
                 curr_pt = pt
                 cvx_hull_pts.append(curr_pt)
             elif (state == 0 or state == 1):
-                curr_pt_height = curr_pt[1][2] if isLower else -curr_pt[1][2]
-                pt_height = pt[1][2] if isLower else -pt[1][2]
+                import pdb; pdb.set_trace()
+                curr_pt_height = curr_pt[1][3] if isLower else -curr_pt[1][3]
+                pt_height = pt[1][3] if isLower else -pt[1][3]
                 if (curr_pt_height - pt_height) >= 0:
                     state = 1
                     curr_pt = pt
@@ -78,8 +79,8 @@ class ConvexHull:
                     lower_idx = idx
                     cvx_hull_pts.append(curr_pt)
             elif state == 2:
-                curr_pt_height = curr_pt[1][2] if isLower else -curr_pt[1][2]
-                pt_height = pt[1][2] if isLower else -pt[1][2]
+                curr_pt_height = curr_pt[1][3] if isLower else -curr_pt[1][3]
+                pt_height = pt[1][3] if isLower else -pt[1][3]
                 if (curr_pt_height - pt_height) >= 0:
                     state = 1
                     curr_pt = pt

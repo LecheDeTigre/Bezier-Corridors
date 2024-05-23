@@ -1,6 +1,7 @@
 import numpy as np
 
-from ConvexHull import ConvexHull
+from Integrators.GaussianQuadratureFourthOrder import integrate
+from ConvexHull.ConvexHull import ConvexHull
 
 class BezierCurve:
     def __init__(self, ctrl_pts):
@@ -11,6 +12,24 @@ class BezierCurve:
         self.ctrl_pts = ctrl_pts
 
         self.convex_hull = ConvexHull(ctrl_pts=ctrl_pts)
+        
+        differential = lambda t: np.linalg.norm(self.getDerivativeValueAt(t))**2
+        
+        self.bezier_length = integrate(differential, [0, 1])
+        
+    def getLengthAt(self, t):
+        length = 0
+        # import pdb; pdb.set_trace()
+        
+        differential = lambda param: np.linalg.norm(self.getDerivativeValueAt(param))**2
+        bezier_length = integrate(differential, [0., t])
+        
+        length += bezier_length
+        
+        return length
+
+    def getLength(self, distance_along):
+        return self.bezier_length
 
     def getConvexHullSplineIntersection(self, convex_hull):
         intersection_pts = None
@@ -124,8 +143,9 @@ class BezierCurve:
             # print("iter: " + str(iter))
 
             if abs(dist_derivative) < abs_tol:
+                s = self.getLengthAt(t)
                 # print("end\n\n")
-                return (t, closest_point, dist)
+                return (t, s, closest_point, dist)
             
             closest_point = self.getValueAt(t)
             dist_derivative = np.dot(closest_point-pt, self.getDerivativeValueAt(t))
@@ -149,11 +169,14 @@ class BezierCurve:
 
             if abs(1-(dist_derivative/prev_dist_derivative)) < rel_tol:
                 # print("end\n\n")
-                return (t, closest_point, dist)
+                s = self.getLengthAt(t)
+                return (t, s, closest_point, dist)
             
             prev_dist_derivative = dist_derivative
             
         # print("end\n\n")
+        
+        s = self.getLengthAt(t)
 
-        return (t, closest_point, dist)
+        return (t, s, closest_point, dist)
 
