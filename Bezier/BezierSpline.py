@@ -13,11 +13,13 @@ class BezierSpline:
 
         assert len(ctrl_pts) >= 2 and len(ctrl_pts) % 2 == 0
 
-        for i in range(0, np.shape(ctrl_pts)[0]-1, 2):
+        for i in range(0, np.shape(ctrl_pts)[0], 2):
             ctrl_pt1 = ctrl_pts[i].knot_pt
             ctrl_pt2 = ctrl_pts[i].anchor_pt
-            ctrl_pt3 = ctrl_pts[i+1].anchor_pt
-            ctrl_pt4 = ctrl_pts[i+1].knot_pt
+            ctrl_pt3 = ctrl_pts[i+1].knot_pt
+            ctrl_pt4 = ctrl_pts[i+1].anchor_pt
+
+            import pdb; pdb.set_trace()
 
             self.bezier_curves.append(BezierCurve(np.array([ctrl_pt1, ctrl_pt2, ctrl_pt3, ctrl_pt4])))
 
