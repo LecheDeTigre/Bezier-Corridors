@@ -117,66 +117,42 @@ class BezierCurve:
 
         return np.array([x, y])
     
-    def closestPointTo(self, t0, pt, max_iter, abs_tol, rel_tol):
+    def newton_iteration(self, t, ref_pt, func, derivative_func, second_derivative_func):
+        closest_point = func(t)
+        derivative = derivative_func(t)
+        second_derivative = second_derivative_func(t)
+        
+        t_new = min(max(0, t - derivative / second_derivative), 1)
+        closest_point = func(t_new)
+        dist = np.linalg.norm(closest_point - ref_pt) ** 2
+        
+        return t_new, closest_point, dist, derivative
 
-        # print("ref pt: "+str(pt))
-
+    def closestPointToRefPt(self, t0, ref_pt, max_iter, abs_tol, rel_tol):
         t = t0
+        prev_derivative = np.inf
 
-        prev_dist_derivative = np.inf
+        closest_point_lambda = lambda t: self.getValueAt(t)
+        dist_derivative_lambda = lambda t: np.dot(closest_point_lambda(t)-ref_pt, self.getDerivativeValueAt(t))
+        dist_second_derivative_lambda = lambda t: dist_derivative_lambda(t) + np.dot(self.getDerivativeValueAt(t), self.getDerivativeValueAt(t))
 
-        closest_point = self.getValueAt(t)
-        dist = np.linalg.norm(closest_point-pt)**2
-        dist_derivative = np.dot(closest_point-pt, self.getDerivativeValueAt(t))
-        dist_second_derivative = np.dot(closest_point-pt, self.getSecondDerivativeValueAt(t)) + np.dot(self.getDerivativeValueAt(t), self.getDerivativeValueAt(t))    
-            
-        # print("Px, Py: " + str(self.Px) + ", " + str(self.Py))
-        # print("Px', Py': " + str(self.getDerivativeValueAt(t)))
-        # print("Px'\', Py'\': " + str(self.getSecondDerivativeValueAt(t)))
-        # print("t, dist_derivative, dist_second_derivative: " + str(t) + ", " + str(dist_derivative) + ", " + str(dist_second_derivative))
-        # print("closest_point: " + str(closest_point))
-        # print("dist: " + str(dist))
+        for iter in range(max_iter):
+            t_new, closest_point, dist, derivative = self.newton_iteration(t, ref_pt, closest_point_lambda, dist_derivative_lambda, dist_second_derivative_lambda)
 
-
-        for iter in range(0, max_iter):
-            # import pdb; pdb.set_trace()
-            # print("iter: " + str(iter))
-
-            if abs(dist_derivative) < abs_tol:
+            if abs(derivative) < abs_tol:
                 s = self.getLengthAt(t)
-                # print("end\n\n")
-                return (t, s, closest_point, dist)
+                return t, s, closest_point, dist
             
-            closest_point = self.getValueAt(t)
-            dist_derivative = np.dot(closest_point-pt, self.getDerivativeValueAt(t))
-            dist_second_derivative = np.dot(closest_point-pt, self.getSecondDerivativeValueAt(t)) + np.dot(self.getDerivativeValueAt(t), self.getDerivativeValueAt(t))
+            if abs(1 - (derivative / prev_derivative)) < rel_tol:
+                s = self.getLengthAt(t)
+                return t, s, closest_point, dist
 
-            
-            t_new = min(max(0, t - dist_derivative/dist_second_derivative), 1) 
-            closest_point = self.getValueAt(t_new)
-            dist = np.linalg.norm(closest_point-pt)**2
-            
-            # print("Px, Py: " + str(self.Px) + ", " + str(self.Py))
-            # print("Px', Py': " + str(self.getDerivativeValueAt(t_new)))
-            # print("Px'\', Py'\': " + str(self.getSecondDerivativeValueAt(t_new)))
-            # print("t_new, t, dist_derivative, dist_second_derivative: " + str(t_new) + ", " + str(t) + ", " + str(dist_derivative) + ", " + str(dist_second_derivative))
-            # print("closest_point: " + str(closest_point))
-            # print("dist: " + str(dist))
-
+            prev_derivative = derivative
             t = t_new
 
-            # print("dist_derivative, prev_dist_derivative: " + str((dist_derivative, prev_dist_derivative)))
-
-            if abs(1-(dist_derivative/prev_dist_derivative)) < rel_tol:
-                # print("end\n\n")
-                s = self.getLengthAt(t)
-                return (t, s, closest_point, dist)
-            
-            prev_dist_derivative = dist_derivative
-            
-        # print("end\n\n")
-        
         s = self.getLengthAt(t)
 
-        return (t, s, closest_point, dist)
+        # print((t, s, closest_point, dist))
+    
+        return t, s, closest_point, dist
 

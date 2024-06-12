@@ -247,8 +247,8 @@ class BezierSpline:
             closest_point = self.evaluateSpline(t)
 
             # print("t_initial: "+str(t))
-                
-            (t, s, closest_point, dist) = self.bezier_curves[curve_num].closestPointTo(t, hull_pt, max_iter, abs_tol, rel_tol)
+            
+            (t, s, closest_point, dist) = self.bezier_curves[curve_num].closestPointToRefPt(t, hull_pt, max_iter, abs_tol, rel_tol)
             
             t = t + curve_num
 
