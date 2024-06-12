@@ -3,11 +3,46 @@ import numpy as np
 from Integrators.GaussianQuadratureFourthOrder import integrate
 from ConvexHull.ConvexHull import ConvexHull
 
+def newton_iteration(t0, func, derivative_func, max_iter, abs_tol, rel_tol):
+    t = t0
+
+    prev_derivative = np.inf
+
+    for iter in range(max_iter):
+        value = func(t)
+        derivative_val = derivative_func(t)
+
+        if hasattr(t, '__iter__'):
+            if abs(np.linalg.det(derivative_val)) < 1e-6:
+                return(t0, value)
+            step = -np.dot(np.linalg.inv(derivative_val), value)
+            t_new = t + step
+
+            limit_func = lambda x: min(max(0, x), 1)
+            vectorized_limit_func = np.vectorize(limit_func)
+            t_new = vectorized_limit_func(t_new)
+        else:
+            if abs(derivative_val) < 1e-6:
+                return(t0, value)
+            step = -value / derivative_val
+            t_new = min(max(0, t + step), 1)
+
+        if abs(np.linalg.norm(value)) < abs_tol:
+            return t, value
+        
+        if abs(1 - (np.linalg.norm(value) / np.linalg.norm(prev_derivative))) < rel_tol:
+            return t, value
+
+        prev_derivative = value
+        t = t_new
+    
+    return t_new, value
+
 class BezierCurve:
     def __init__(self, ctrl_pts):
         (x1, y1), (x2, y2), (x3, y3), (x4, y4) = (ctrl_pts[0, 0], ctrl_pts[0, 1]), (ctrl_pts[1, 0], ctrl_pts[1, 1]), (ctrl_pts[2, 0], ctrl_pts[2, 1]), (ctrl_pts[3, 0], ctrl_pts[3, 1])
-        self.Px = np.array([x4 - 3*x3 + 3*x2 - x1, 3*x3 - 6*x2 + 3*x1, 3*x2 - 3*x1, x1])
-        self.Py = np.array([y4 - 3*y3 + 3*y2 - y1, 3*y3 - 6*y2 + 3*y1, 3*y2 - 3*y1, y1])
+        self.Px = np.array([x1, x2, x3, x4])
+        self.Py = np.array([y1, y2, y3, y4])
 
         self.ctrl_pts = ctrl_pts
 
@@ -91,68 +126,61 @@ class BezierCurve:
         return roots
 
     def getValueAt(self, t):
-        x, y = self.Px[0], self.Py[0]
-
-        for i in range(1, 4, 1):
-            x = self.Px[i] + x*t
-            y = self.Py[i] + y*t
+        x, y = (1-t)**3 * self.Px[0] + 3*(1-t)**2 * t * self.Px[1] + 3*(1-t) * t**2 * self.Px[2] + t**3 * self.Px[3], (1-t)**3 * self.Py[0] + 3*(1-t)**2 * t * self.Py[1] + 3*(1-t) * t**2 * self.Py[2] + t**3 * self.Py[3]
 
         return np.array([x, y])
     
     def getDerivativeValueAt(self, t):
-        x, y = 3*self.Px[0], 3*self.Py[0]
-
-        for i in range(1, 3, 1):
-            x = self.Px[i]*(3-i) + x*t
-            y = self.Py[i]*(3-i) + y*t
+        x, y = 3*(1-t)**2 * (self.Px[1] - self.Px[0]) + 6*(1-t)*t * (self.Px[2] - self.Px[1]) + 3*t**2 * (self.Px[3] - self.Px[2]), 3*(1-t)**2 * (self.Py[1] - self.Py[0]) + 6*(1-t)*t * (self.Py[2] - self.Py[1]) + 3*t**2 * (self.Py[3] - self.Py[2])
 
         return np.array([x, y])
     
     def getSecondDerivativeValueAt(self, t):
-        x, y = 3*2*self.Px[0], 3*2*self.Py[0]
-
-        for i in range(1, 2, 1):
-            x = self.Px[i]*(3-i)*(3-i-1) + x*t
-            y = self.Py[i]*(3-i)*(3-i-1) + y*t
+        x, y = 6*(1-t) * (self.Px[2] - 2*self.Px[1] + self.Px[0]) + 6*t * (self.Px[3] - 2*self.Py[2] + self.Py[1]), 6*(1-t) * (self.Py[2] - 2*self.Py[1] + self.Py[0]) + 6*t * (self.Py[3] - 2*self.Py[2] + self.Py[1])
 
         return np.array([x, y])
-    
-    def newton_iteration(self, t, ref_pt, func, derivative_func, second_derivative_func):
-        closest_point = func(t)
-        derivative = derivative_func(t)
-        second_derivative = second_derivative_func(t)
-        
-        t_new = min(max(0, t - derivative / second_derivative), 1)
-        closest_point = func(t_new)
-        dist = np.linalg.norm(closest_point - ref_pt) ** 2
-        
-        return t_new, closest_point, dist, derivative
 
     def closestPointToRefPt(self, t0, ref_pt, max_iter, abs_tol, rel_tol):
         t = t0
-        prev_derivative = np.inf
 
         closest_point_lambda = lambda t: self.getValueAt(t)
         dist_derivative_lambda = lambda t: np.dot(closest_point_lambda(t)-ref_pt, self.getDerivativeValueAt(t))
         dist_second_derivative_lambda = lambda t: dist_derivative_lambda(t) + np.dot(self.getDerivativeValueAt(t), self.getDerivativeValueAt(t))
 
-        for iter in range(max_iter):
-            t_new, closest_point, dist, derivative = self.newton_iteration(t, ref_pt, closest_point_lambda, dist_derivative_lambda, dist_second_derivative_lambda)
-
-            if abs(derivative) < abs_tol:
-                s = self.getLengthAt(t)
-                return t, s, closest_point, dist
-            
-            if abs(1 - (derivative / prev_derivative)) < rel_tol:
-                s = self.getLengthAt(t)
-                return t, s, closest_point, dist
-
-            prev_derivative = derivative
-            t = t_new
-
+        t, derivative = newton_iteration(t, dist_derivative_lambda, dist_second_derivative_lambda, max_iter, abs_tol, rel_tol)
         s = self.getLengthAt(t)
 
-        # print((t, s, closest_point, dist))
+        closest_point = closest_point_lambda(t)
+        dist = np.linalg.norm(closest_point_lambda(t)-ref_pt)
     
-        return t, s, closest_point, dist
+        return t, s, closest_point, dist, derivative
+    
+    def closestPointToLine(self, t0, line_points, max_iter, abs_tol, rel_tol):
+        init_guess = np.array([[t0], [0]])
+
+        pt1, pt2 = line_points[0, 0:], line_points[1, 0:]
+
+        line_func = lambda alpha: pt1 + alpha*(pt2-pt1)
+        r = lambda t, alpha: self.getValueAt(t) - line_func(alpha)
+
+        func = lambda input_vec: np.linalg.norm(r(input_vec[0, 0], input_vec[1, 0])) ** 2
+        gradient_func = lambda input_vec: np.array([[2*np.dot(r(input_vec[0,0], input_vec[1,0]), self.getDerivativeValueAt(input_vec[0,0]))], [-2*np.dot(r(input_vec[0,0], input_vec[1,0]), pt2-pt1)]])
+        hessian_func = lambda input_vec: np.array([
+            [2 * (np.dot(self.getDerivativeValueAt(input_vec[0, 0]), self.getDerivativeValueAt(input_vec[0, 0])) + np.dot(r(input_vec[0, 0], input_vec[1, 0]), self.getSecondDerivativeValueAt(input_vec[0, 0]))),
+            -2 * np.dot(self.getDerivativeValueAt(input_vec[0, 0]), pt2 - pt1)],
+            [-2 * np.dot(self.getDerivativeValueAt(input_vec[0, 0]), pt2 - pt1),
+            2 * np.linalg.norm(pt2 - pt1) ** 2]
+        ])
+
+        t, derivative = newton_iteration(init_guess, gradient_func, hessian_func, max_iter, abs_tol, rel_tol)
+        s = self.getLengthAt(t)
+
+        closest_point_bezier = self.getValueAt(t[0])
+        closest_point_line = line_func(t[1])
+
+        dist = func(t)
+
+        # print("hessian_func: " + str(hessian_func(t)))
+
+        return t[0][0], t[1][0], s, closest_point_bezier, closest_point_line, dist, derivative
 
