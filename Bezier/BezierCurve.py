@@ -14,28 +14,39 @@ def newton_iteration(t0, func, derivative_func, max_iter, abs_tol, rel_tol):
 
         if hasattr(t, '__iter__'):
             if abs(np.linalg.det(derivative_val)) < 1e-6:
-                return(t0, value)
+                derivative_val += 0.01
             step = -np.dot(np.linalg.inv(derivative_val), value)
+            print("step: " + str(step))
+            print("t: " + str(t))
             t_new = t + step
+            print("t_old: " + str(t_new))
 
             limit_func = lambda x: min(max(0, x), 1)
             vectorized_limit_func = np.vectorize(limit_func)
             t_new = vectorized_limit_func(t_new)
+            print("t_new: " + str(t_new))
         else:
             if abs(derivative_val) < 1e-6:
+                # import pdb; pdb.set_trace()
                 return(t0, value)
             step = -value / derivative_val
             t_new = min(max(0, t + step), 1)
+        
+        t = t_new
+        value = func(t)
 
         if abs(np.linalg.norm(value)) < abs_tol:
+            # import pdb; pdb.set_trace()
             return t, value
         
         if abs(1 - (np.linalg.norm(value) / np.linalg.norm(prev_derivative))) < rel_tol:
+            # import pdb; pdb.set_trace()
             return t, value
 
         prev_derivative = value
-        t = t_new
     
+    # import pdb; pdb.set_trace()
+
     return t_new, value
 
 class BezierCurve:
@@ -156,7 +167,7 @@ class BezierCurve:
         return t, s, closest_point, dist, derivative
     
     def closestPointToLine(self, t0, line_points, max_iter, abs_tol, rel_tol):
-        init_guess = np.array([[t0], [0]])
+        init_guess = np.array([[t0], [0.5]])
 
         pt1, pt2 = line_points[0, 0:], line_points[1, 0:]
 
